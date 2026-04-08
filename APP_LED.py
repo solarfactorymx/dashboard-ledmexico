@@ -5,6 +5,7 @@ import os
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
+import base64 # <- ¡La nueva herramienta mágica!
 
 # Importamos las librerías del PDF y gráficas
 try:
@@ -295,7 +296,7 @@ def main(page: ft.Page):
             res_final.content.value = "⚠️ Instala librerías: pip install fpdf matplotlib numpy"
             res_final.bgcolor = "#7B241C"; page.update(); return
             
-        res_final.content.value = "⏳ Construyendo documento idéntico al original..."; page.update()
+        res_final.content.value = "⏳ Construyendo documento y empaquetando datos..."; page.update()
         try:
             consumos = datos_pdf_global.get('c_list', [])
             gen_kwh = datos_pdf_global.get('gen_kwh', 0)
@@ -408,20 +409,24 @@ def main(page: ft.Page):
             pdf.image(ruta_g2, x=25, y=None, w=160)
 
             # ==========================================
-            # LA MAGIA PARA QUE ABRA EN EL NAVEGADOR (CORREGIDO)
+            # LA BALA DE PLATA: DESCARGA DIRECTA (SIN RUTAS NI SERVIDORES)
             # ==========================================
-            # 1. Nombre único con la hora para evitar caché
             timestamp = int(datetime.now().timestamp())
             nombre_archivo = f"Propuesta_LED_MEXICO_{timestamp}.pdf"
-            
-            # 2. Guardamos físicamente en la carpeta "uploads" (con S)
             ruta_pdf = os.path.join("uploads", nombre_archivo)
+            
+            # 1. Guardamos el PDF físicamente
             pdf.output(ruta_pdf)
             
-            # 3. Le decimos a Flet que lance la dirección web "/upload/..." (sin S)
-            page.launch_url(f"/upload/{nombre_archivo}")
+            # 2. Leemos el archivo y lo convertimos a datos matemáticos (Base64)
+            with open(ruta_pdf, "rb") as f:
+                pdf_base64 = base64.b64encode(f.read()).decode('utf-8')
             
-            res_final.content.value = "✅ ¡PDF Profesional Generado y Abierto!"
+            # 3. Inyectamos los datos directamente en el navegador del usuario
+            # Esto forzará la descarga/visualización ignorando por completo la nube de Render
+            page.launch_url(f"data:application/pdf;base64,{pdf_base64}")
+            
+            res_final.content.value = "✅ ¡PDF Profesional Descargado!"
             res_final.bgcolor = "#145A32"
         except Exception as ex: 
             res_final.content.value = f"⚠️ Error PDF: {ex}"
@@ -450,5 +455,5 @@ def main(page: ft.Page):
 os.environ["FLET_SECRET_KEY"] = "LED_MEXICO_SEGURIDAD_123"
 puerto = int(os.environ.get("PORT", 8080))
 
-# Ejecución final configurada para internet
+# Ejecución final
 ft.app(target=main, view=ft.AppView.WEB_BROWSER, upload_dir="uploads", assets_dir="assets", host="0.0.0.0", port=puerto)
