@@ -276,12 +276,11 @@ def main(page: ft.Page):
         btn_camara.disabled = False
         page.update()
 
-    btn_camara = ft.ElevatedButton(
-        "📷 TOMAR FOTO DEL RECIBO",
-        bgcolor="#1A5276", color="white", height=50,
-        icon=ft.icons.CAMERA_ALT,
-        on_click=abrir_camara
-    )
+  btn_camara = ft.ElevatedButton(
+    "📷 TOMAR FOTO DEL RECIBO",
+    bgcolor="#1A5276", color="white", height=50,
+    on_click=abrir_camara
+)
 
     contenedor_ocr = ft.Container(
         content=ft.Column([
