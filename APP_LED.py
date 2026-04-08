@@ -314,7 +314,7 @@ def main(page: ft.Page):
             ax.set_title('Historial de Energía (kWh)', fontsize=12, fontweight='bold')
             ax.set_xticks(x); ax.set_xticklabels(etiquetas)
             ax.legend(); fig.tight_layout()
-            ruta_g1 = os.path.join(CARPETA_UPLOADS, "g1.png"); fig.savefig(ruta_g1); plt.close(fig)
+            ruta_g1 = os.path.join(CARPETA_ASSETS, "g1.png"); fig.savefig(ruta_g1); plt.close(fig)
 
             # Gráfica 2
             fig, ax = plt.subplots(figsize=(7, 3.5))
@@ -324,7 +324,7 @@ def main(page: ft.Page):
             ax.set_title('Historial Económico ($)', fontsize=12, fontweight='bold')
             ax.set_xticks(x); ax.set_xticklabels(etiquetas)
             ax.legend(); fig.tight_layout()
-            ruta_g2 = os.path.join(CARPETA_UPLOADS, "g2.png"); fig.savefig(ruta_g2); plt.close(fig)
+            ruta_g2 = os.path.join(CARPETA_ASSETS, "g2.png"); fig.savefig(ruta_g2); plt.close(fig)
 
             # --- CONSTRUCCIÓN DEL PDF ---
             pdf = FPDF()
@@ -406,23 +406,24 @@ def main(page: ft.Page):
             pdf.image(ruta_g2, x=25, y=None, w=160)
 
             # ==========================================
-            # EL BOTÓN DIRECTO NATIVO (Adiós al bloqueador de ventanas)
+            # LA SOLUCIÓN DEFINITIVA (Pestaña Nueva y Segura)
             # ==========================================
             timestamp = int(datetime.now().timestamp())
             nombre_archivo = f"Propuesta_LED_MEXICO_{timestamp}.pdf"
-            ruta_pdf = os.path.join(CARPETA_UPLOADS, nombre_archivo)
             
-            # Guardamos el archivo físicamente en la carpeta
+            # 1. Guardamos el archivo en la carpeta especial (assets)
+            ruta_pdf = os.path.join(CARPETA_ASSETS, nombre_archivo)
             pdf.output(ruta_pdf)
             
-            # Ocultamos el botón de generar, y mostramos el botón directo de descarga
+            # 2. Ocultamos el botón que genera, para no estorbar
             btn_pdf.visible = False
             
-            # Este botón actúa como un enlace normal de internet, por lo que el celular NO lo bloquea
-            btn_abrir_pdf.url = f"/upload/{nombre_archivo}"
+            # 3. Configuramos el botón verde para que funcione como un Link Seguro
+            btn_abrir_pdf.url = f"/{nombre_archivo}"
+            btn_abrir_pdf.url_target = "_blank"  # <--- ESTO EVITA QUE SE RECARGUE EL LOGIN
             btn_abrir_pdf.visible = True
             
-            res_final.content.value = "✅ ¡PDF Generado! Haz clic en el botón verde de abajo para abrirlo."
+            res_final.content.value = "✅ ¡PDF Generado! Haz clic en el botón verde de abajo para abrirlo en otra pestaña."
             res_final.bgcolor = "#145A32"
         except Exception as ex: 
             res_final.content.value = f"⚠️ Error PDF: {ex}"
@@ -431,7 +432,7 @@ def main(page: ft.Page):
         btn_pdf.disabled = False
         page.update()
 
-    # Los dos botones (El de proceso y el de descarga nativa)
+    # Los dos botones (El gris que genera y el verde que descarga/abre)
     btn_calcular = ft.ElevatedButton("CALCULAR SISTEMA", on_click=calcular_propuesta, width=350, height=60, bgcolor="orange", color="white")
     btn_pdf = ft.ElevatedButton("📄 GENERAR PDF CON GRÁFICAS", bgcolor="#34495E", color="white", width=350, height=50, visible=False, on_click=generar_y_compartir_pdf)
     btn_abrir_pdf = ft.ElevatedButton("✅ ABRIR / DESCARGAR PDF", bgcolor="#2ECC71", color="white", width=350, height=60, visible=False)
@@ -452,5 +453,5 @@ def main(page: ft.Page):
 os.environ["FLET_SECRET_KEY"] = "LED_MEXICO_SEGURIDAD_123"
 puerto = int(os.environ.get("PORT", 8080))
 
-# Ahora usamos la ruta absoluta para que Flet no se pierda nunca
+# Ahora usamos la ruta absoluta para que Flet reconozca los archivos
 ft.app(target=main, view=ft.AppView.WEB_BROWSER, upload_dir=CARPETA_UPLOADS, assets_dir=CARPETA_ASSETS, host="0.0.0.0", port=puerto)
