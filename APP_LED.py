@@ -140,9 +140,19 @@ def main(page: ft.Page):
                         if i < len(entradas_historial):
                             entradas_historial[i].value = str(round(valor)); entradas_historial[i].color = "#2ECC71"
                 page.update(); calcular_propuesta()
-            else: txt_estado_.value = f"❌ Error : {datos.get('error')}"; txt_estado_.color = "red"
-        except Exception as ex: txt_estado_.value = f"❌ Error de Nube: Verifica enlace de Render."; txt_estado_.color = "red"
-        finally: prg_.visible = False; btn_.disabled = False; page.update()
+            else: 
+                # AQUÍ ESTÁ EL DETECTOR DEL ERROR FANTASMA
+                txt_estado_ocr.value = f"❌ Error Real: {datos.get('detail', datos.get('error', str(datos)))}"
+                txt_estado_ocr.color = "red"
+                
+        except Exception as ex: 
+            txt_estado_ocr.value = f"❌ Error de conexión al motor: {ex}"
+            txt_estado_ocr.color = "red"
+        finally: 
+            # AQUÍ ESTABA EL ERROR DE DEDO (prg_ocr)
+            prg_ocr.visible = False
+            btn_ocr.disabled = False
+            page.update()
 
     def procesar_archivo_seleccionado(e: ft.FilePickerResultEvent):
         if getattr(e, "files", None) is None or not e.files: return
