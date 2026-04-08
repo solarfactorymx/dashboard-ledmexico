@@ -26,7 +26,7 @@ def main(page: ft.Page):
     page.padding = 20
 
     # ⚠️ 1. REEMPLAZA CON TU ENLACE DE RENDER
-    URL_SERVIDOR = "https://motor-led-mexico-1.onrender.com" 
+    URL_SERVIDOR = "https://motor-led-mexico.onrender.com" 
     
     # ⚠️ 2. REEMPLAZA CON EL NOMBRE EXACTO DE TU ARCHIVO JSON DE GOOGLE
     ARCHIVO_CREDENCIALES_GOOGLE = "credenciales.json" 
@@ -140,22 +140,22 @@ def main(page: ft.Page):
                         if i < len(entradas_historial):
                             entradas_historial[i].value = str(round(valor)); entradas_historial[i].color = "#2ECC71"
                 page.update(); calcular_propuesta()
-            else: txt_estado_ocr.value = f"❌ Error OCR: {datos.get('error')}"; txt_estado_ocr.color = "red"
-        except Exception as ex: txt_estado_ocr.value = f"❌ Error de Nube: Verifica enlace de Render."; txt_estado_ocr.color = "red"
-        finally: prg_ocr.visible = False; btn_ocr.disabled = False; page.update()
+            else: txt_estado_.value = f"❌ Error : {datos.get('error')}"; txt_estado_.color = "red"
+        except Exception as ex: txt_estado_.value = f"❌ Error de Nube: Verifica enlace de Render."; txt_estado_.color = "red"
+        finally: prg_.visible = False; btn_.disabled = False; page.update()
 
     def procesar_archivo_seleccionado(e: ft.FilePickerResultEvent):
         if getattr(e, "files", None) is None or not e.files: return
         archivo = e.files[0]
-        txt_estado_ocr.value = f"⏳ Enviando a la nube Render..."; txt_estado_ocr.color = "orange"
-        prg_ocr.visible = True; btn_ocr.disabled = True; page.update()
+        txt_estado_.value = f"⏳ Enviando a la nube Render..."; txt_estado_.color = "orange"
+        prg_.visible = True; btn_.disabled = True; page.update()
         upload_url = page.get_upload_url(archivo.name, 60)
         file_picker.upload([ft.FilePickerUploadFile(archivo.name, upload_url=upload_url)])
 
     file_picker = ft.FilePicker(on_result=procesar_archivo_seleccionado, on_upload=on_archivo_subido)
     page.overlay.append(file_picker)
-    btn_ocr = ft.ElevatedButton("📷 ESCANEAR RECIBO", bgcolor="#145A32", color="white", height=50, on_click=lambda _: file_picker.pick_files(allow_multiple=False, allowed_extensions=["pdf", "png", "jpg", "jpeg"]))
-    contenedor_ocr = ft.Container(content=ft.Column([btn_ocr, ft.Row([prg_ocr, txt_estado_ocr], alignment=ft.MainAxisAlignment.CENTER)], horizontal_alignment=ft.CrossAxisAlignment.CENTER), padding=10, border=ft.border.all(1, "#2ECC71"), border_radius=10, margin=ft.margin.only(bottom=15))
+    btn_ = ft.ElevatedButton("📷 ESCANEAR RECIBO", bgcolor="#145A32", color="white", height=50, on_click=lambda _: file_picker.pick_files(allow_multiple=False, allowed_extensions=["pdf", "png", "jpg", "jpeg"]))
+    contenedor_ = ft.Container(content=ft.Column([btn_, ft.Row([prg_, txt_estado_], alignment=ft.MainAxisAlignment.CENTER)], horizontal_alignment=ft.CrossAxisAlignment.CENTER), padding=10, border=ft.border.all(1, "#2ECC71"), border_radius=10, margin=ft.margin.only(bottom=15))
 
     # ==========================================
     # 2. TABLAS Y LÓGICA 
@@ -423,7 +423,7 @@ def main(page: ft.Page):
     btn_pdf = ft.ElevatedButton("📄 EXPORTAR PDF CON GRÁFICAS", bgcolor="#C0392B", color="white", width=350, height=50, visible=False, on_click=generar_y_compartir_pdf)
 
     pantalla_principal = ft.Column([
-        ft.Text("LED MÉXICO - Dashboard Financiero + OCR", size=26, weight="bold", color="orange"),
+        ft.Text("LED MÉXICO - Calculo de sistemas de interconexion ", size=26, weight="bold", color="orange"),
         contenedor_ocr, 
         ft.Text("1. Seleccionar Tarifa CFE Manualmente (Opcional)", weight="bold"),
         grid_tarifas, 
