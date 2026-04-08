@@ -7,11 +7,11 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 
-# Importamos las librerías del PDF y gráficas aquí para que funcionen bien en la nube
+# Importamos las librerías del PDF y gráficas
 try:
     import numpy as np
     import matplotlib
-    matplotlib.use('Agg') # Fundamental para que no choque en servidores de internet
+    matplotlib.use('Agg') # Fundamental para que no choque en servidores
     import matplotlib.pyplot as plt
     from fpdf import FPDF
 except ImportError:
@@ -25,13 +25,12 @@ def main(page: ft.Page):
     page.scroll = "adaptive"
     page.padding = 20
 
-    # ⚠️ 1. REEMPLAZA CON TU ENLACE DE RENDER
+    # ⚠️ 1. REEMPLAZA CON TU ENLACE DE RENDER (EL DEL MOTOR, SIN / AL FINAL)
     URL_SERVIDOR = "https://motor-led-mexico.onrender.com" 
     
     # ⚠️ 2. REEMPLAZA CON EL NOMBRE EXACTO DE TU ARCHIVO JSON DE GOOGLE
     ARCHIVO_CREDENCIALES_GOOGLE = "credenciales.json" 
     
-    # Configuración de Google Sheets
     ID_HOJA = "1B-q98Dl3TNxRX1yNXU9piCyTS4x2NvWDeY9EK3LvDzc"
     SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
 
@@ -119,7 +118,12 @@ def main(page: ft.Page):
             with open(ruta_archivo, 'rb') as f:
                 archivos_para_enviar = {'file': (e.file_name, f, tipo_mime)}
                 respuesta = requests.post(f"{URL_SERVIDOR}/api/ocr", files=archivos_para_enviar)
-                datos = respuesta.json()
+                
+                # Intentamos leer la respuesta de la nube de forma segura
+                try:
+                    datos = respuesta.json()
+                except Exception:
+                    datos = {"error": f"El servidor respondió con código {respuesta.status_code}. Revisa la URL_SERVIDOR."}
 
             if datos.get("exito"):
                 txt_estado_ocr.value = "✅ ¡Recibo procesado con éxito!"; txt_estado_ocr.color = "green"
@@ -141,15 +145,14 @@ def main(page: ft.Page):
                             entradas_historial[i].value = str(round(valor)); entradas_historial[i].color = "#2ECC71"
                 page.update(); calcular_propuesta()
             else: 
-                # AQUÍ ESTÁ EL DETECTOR DEL ERROR FANTASMA
-                txt_estado_ocr.value = f"❌ Error Real: {datos.get('detail', datos.get('error', str(datos)))}"
+                # Si la IA falla, extraemos el error exacto y lo mostramos
+                error_msg = datos.get('detail', datos.get('error', str(datos)))
+                txt_estado_ocr.value = f"❌ Error Real de la Nube: {error_msg}"
                 txt_estado_ocr.color = "red"
-                
         except Exception as ex: 
             txt_estado_ocr.value = f"❌ Error de conexión al motor: {ex}"
             txt_estado_ocr.color = "red"
         finally: 
-            # AQUÍ ESTABA EL ERROR DE DEDO (prg_ocr)
             prg_ocr.visible = False
             btn_ocr.disabled = False
             page.update()
@@ -157,15 +160,15 @@ def main(page: ft.Page):
     def procesar_archivo_seleccionado(e: ft.FilePickerResultEvent):
         if getattr(e, "files", None) is None or not e.files: return
         archivo = e.files[0]
-        txt_estado_.value = f"⏳ Enviando a la nube Render..."; txt_estado_.color = "orange"
-        prg_.visible = True; btn_.disabled = True; page.update()
+        txt_estado_ocr.value = f"⏳ Enviando a la nube Render..."; txt_estado_ocr.color = "orange"
+        prg_ocr.visible = True; btn_ocr.disabled = True; page.update()
         upload_url = page.get_upload_url(archivo.name, 60)
         file_picker.upload([ft.FilePickerUploadFile(archivo.name, upload_url=upload_url)])
 
     file_picker = ft.FilePicker(on_result=procesar_archivo_seleccionado, on_upload=on_archivo_subido)
     page.overlay.append(file_picker)
-    btn_ = ft.ElevatedButton("📷 ESCANEAR RECIBO", bgcolor="#145A32", color="white", height=50, on_click=lambda _: file_picker.pick_files(allow_multiple=False, allowed_extensions=["pdf", "png", "jpg", "jpeg"]))
-    contenedor_ = ft.Container(content=ft.Column([btn_, ft.Row([prg_, txt_estado_], alignment=ft.MainAxisAlignment.CENTER)], horizontal_alignment=ft.CrossAxisAlignment.CENTER), padding=10, border=ft.border.all(1, "#2ECC71"), border_radius=10, margin=ft.margin.only(bottom=15))
+    btn_ocr = ft.ElevatedButton("📷 ESCANEAR RECIBO", bgcolor="#145A32", color="white", height=50, on_click=lambda _: file_picker.pick_files(allow_multiple=False, allowed_extensions=["pdf", "png", "jpg", "jpeg"]))
+    contenedor_ocr = ft.Container(content=ft.Column([btn_ocr, ft.Row([prg_ocr, txt_estado_ocr], alignment=ft.MainAxisAlignment.CENTER)], horizontal_alignment=ft.CrossAxisAlignment.CENTER), padding=10, border=ft.border.all(1, "#2ECC71"), border_radius=10, margin=ft.margin.only(bottom=15))
 
     # ==========================================
     # 2. TABLAS Y LÓGICA 
@@ -258,13 +261,13 @@ def main(page: ft.Page):
                     p_list.append(costo_estimado)
                     np_list.append(nuevo_pago_estimado)
                     a_list.append(max(0, costo_estimado - nuevo_pago_estimado))
-                    b_list.append(c_val - gen_kwh) # Balance
+                    b_list.append(c_val - gen_kwh)
 
                 potencia_inst = (cant_final * w_panel) / 1000
-                inversor_sug = potencia_inst / 1.2 # Margen del 20%
+                inversor_sug = potencia_inst / 1.2
                 gen_diaria_total = generacion_diaria_un_panel * cant_final
                 gen_anual = gen_diaria_total * 365
-                co2 = gen_anual * 0.000457 # Factor aprox México
+                co2 = gen_anual * 0.000457
                 ahorro_anual = sum(a_list) * (12/len(consumos) if switch_mensual.value else 6/len(consumos))
 
                 datos_pdf_global.update({
@@ -292,7 +295,6 @@ def main(page: ft.Page):
             
         res_final.content.value = "⏳ Construyendo documento idéntico al original..."; page.update()
         try:
-            # 1. GENERAR GRÁFICAS Y GUARDARLAS TEMPORALMENTE
             consumos = datos_pdf_global.get('c_list', [])
             gen_kwh = datos_pdf_global.get('gen_kwh', 0)
             pagos = datos_pdf_global.get('p_list', [])
@@ -305,7 +307,7 @@ def main(page: ft.Page):
             x = np.arange(n_periodos)
             etiquetas = [f"P{i+1}" for i in range(n_periodos)]
 
-            # --- Gráfica 1: Energía ---
+            # Gráfica 1
             fig, ax = plt.subplots(figsize=(7, 3.5))
             ax.bar(x - 0.175, consumos, 0.35, label='Consumo', color='#E74C3C')
             ax.bar(x + 0.175, [gen_kwh]*n_periodos, 0.35, label='Generación', color='#2ECC71')
@@ -314,7 +316,7 @@ def main(page: ft.Page):
             ax.legend(); fig.tight_layout()
             ruta_g1 = os.path.join("assets", "g1.png"); fig.savefig(ruta_g1); plt.close(fig)
 
-            # --- Gráfica 2: Economía ---
+            # Gráfica 2
             fig, ax = plt.subplots(figsize=(7, 3.5))
             ax.bar(x - 0.25, pagos, 0.25, label='Pago Actual', color='#E74C3C')
             ax.bar(x, ahorros, 0.25, label='Ahorro', color='#2ECC71')
@@ -324,11 +326,10 @@ def main(page: ft.Page):
             ax.legend(); fig.tight_layout()
             ruta_g2 = os.path.join("assets", "g2.png"); fig.savefig(ruta_g2); plt.close(fig)
 
-            # 2. CREACIÓN DEL DISEÑO PDF (Estilo LED MEXICO A4)
+            # PDF
             pdf = FPDF()
             pdf.add_page()
             
-            # Encabezado
             pdf.set_font("Arial", 'B', 18); pdf.set_text_color(243, 156, 18)
             pdf.cell(0, 6, "LED MEXICO", ln=True, align="L")
             pdf.set_font("Arial", 'I', 10); pdf.set_text_color(100, 100, 100)
@@ -339,7 +340,6 @@ def main(page: ft.Page):
             pdf.cell(0, 6, f"Fecha de generacion: {datetime.now().strftime('%d/%m/%Y')}", ln=True, align="L")
             pdf.ln(5)
 
-            # TABLA 1: DATOS DEL SISTEMA Y ECONÓMICOS
             pdf.set_font("Arial", 'B', 10)
             pdf.set_fill_color(240, 240, 240)
             pdf.cell(95, 7, " Datos del Sistema", border=1, fill=True)
@@ -347,14 +347,10 @@ def main(page: ft.Page):
             
             pdf.set_font("Arial", '', 10)
             def fila_datos(c1, v1, c2, v2):
-                pdf.cell(47.5, 7, f" {c1}", border=1)
-                pdf.set_font("Arial", 'B', 10)
-                pdf.cell(47.5, 7, f" {v1}", border=1)
-                pdf.set_font("Arial", '', 10)
-                pdf.cell(47.5, 7, f" {c2}", border=1)
-                pdf.set_font("Arial", 'B', 10)
-                pdf.cell(47.5, 7, f" {v2}", border=1, ln=True)
-                pdf.set_font("Arial", '', 10)
+                pdf.cell(47.5, 7, f" {c1}", border=1); pdf.set_font("Arial", 'B', 10)
+                pdf.cell(47.5, 7, f" {v1}", border=1); pdf.set_font("Arial", '', 10)
+                pdf.cell(47.5, 7, f" {c2}", border=1); pdf.set_font("Arial", 'B', 10)
+                pdf.cell(47.5, 7, f" {v2}", border=1, ln=True); pdf.set_font("Arial", '', 10)
 
             fila_datos("Tarifa CFE", datos_pdf_global.get('tarifa', ''), "Pago Promedio", f"${datos_pdf_global.get('pago_promedio',0):,.0f}")
             fila_datos("Paneles", str(datos_pdf_global.get('paneles', '')), "Ahorro Anual", f"${datos_pdf_global.get('ahorro_anual',0):,.0f}")
@@ -364,7 +360,6 @@ def main(page: ft.Page):
             fila_datos("Ubicacion", "Mexico", "HSP Aplicado", f"{datos_pdf_global.get('hsp',0)} hrs")
             pdf.ln(8)
 
-            # TABLA 2: COMPARATIVA ENERGÉTICA DETALLADA
             pdf.set_font("Arial", 'B', 12)
             pdf.cell(0, 8, "Comparativa Energetica Detallada", ln=True)
             pdf.set_font("Arial", 'B', 9)
@@ -386,7 +381,6 @@ def main(page: ft.Page):
                 pdf.cell(anchos[6], 7, f"${nuevos_pagos[i]:,.0f}", border=1, align="R")
                 pdf.ln()
             
-            # Fila de Totales
             pdf.set_font("Arial", 'B', 9)
             pdf.set_fill_color(240, 240, 240)
             pdf.cell(anchos[0], 7, "TOTAL", border=1, align="C", fill=True)
@@ -398,29 +392,24 @@ def main(page: ft.Page):
             pdf.cell(anchos[6], 7, f"${sum(nuevos_pagos):,.0f}", border=1, align="R", fill=True)
             pdf.ln(10)
 
-            # TEXTO DESCRIPTIVO
             pdf.set_font("Arial", 'B', 11)
             pdf.cell(0, 6, "Propuesta Tecnica del Sistema:", ln=True)
             pdf.set_font("Arial", '', 10)
             texto_p = (f"Considerando su consumo y para cubrir los gastos reflejados en el recibo de CFE, se determina la necesidad de instalar {datos_pdf_global.get('paneles', '')} paneles solares de {datos_pdf_global.get('watts', '')} Watts de potencia. Este sistema solar fotovoltaico tendra la capacidad de generar aproximadamente {datos_pdf_global.get('gen_kwh',0):,.0f} kWh por periodo. En consecuencia, se propone la instalacion de un inversor con una capacidad de al menos {datos_pdf_global.get('inversor_sug',0):.2f} kW para gestionar eficientemente la energia producida.\n\nEl precio de los costos es aproximado y puede diferir del recibo.")
             pdf.multi_cell(0, 5, texto_p)
 
-            # PAGINA 2: GRÁFICAS
             pdf.add_page()
             pdf.set_font("Arial", 'B', 14)
             pdf.cell(0, 10, "Analisis Grafico", ln=True, align="C")
             pdf.ln(5)
-            # Centramos las imágenes en la hoja A4
             pdf.image(ruta_g1, x=25, y=None, w=160)
             pdf.ln(10)
             pdf.image(ruta_g2, x=25, y=None, w=160)
 
-            # Guardar el archivo en la carpeta pública
             nombre_archivo = "Propuesta_Solar_LED_MEXICO.pdf"
             ruta_pdf = os.path.join("assets", nombre_archivo)
             pdf.output(ruta_pdf)
             
-            # Ordenar al navegador que lo abra
             page.launch_url(f"/{nombre_archivo}")
             res_final.content.value = "✅ ¡PDF Profesional Generado!"
             res_final.bgcolor = "#145A32"
@@ -433,7 +422,7 @@ def main(page: ft.Page):
     btn_pdf = ft.ElevatedButton("📄 EXPORTAR PDF CON GRÁFICAS", bgcolor="#C0392B", color="white", width=350, height=50, visible=False, on_click=generar_y_compartir_pdf)
 
     pantalla_principal = ft.Column([
-        ft.Text("LED MÉXICO - Calculo de sistemas de interconexion ", size=26, weight="bold", color="orange"),
+        ft.Text("LED MÉXICO - Dashboard Financiero + OCR", size=26, weight="bold", color="orange"),
         contenedor_ocr, 
         ft.Text("1. Seleccionar Tarifa CFE Manualmente (Opcional)", weight="bold"),
         grid_tarifas, 
