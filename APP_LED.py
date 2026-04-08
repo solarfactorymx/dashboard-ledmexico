@@ -5,13 +5,21 @@ import os
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
-import base64 # <- ¡La nueva herramienta mágica!
+
+# ==========================================
+# FIJAMOS LA RUTA ABSOLUTA DEL SERVIDOR (Evita la pantalla de Login)
+# ==========================================
+DIRECTORIO_RAIZ = os.getcwd()
+CARPETA_UPLOADS = os.path.join(DIRECTORIO_RAIZ, "uploads")
+CARPETA_ASSETS = os.path.join(DIRECTORIO_RAIZ, "assets")
+os.makedirs(CARPETA_UPLOADS, exist_ok=True)
+os.makedirs(CARPETA_ASSETS, exist_ok=True)
 
 # Importamos las librerías del PDF y gráficas
 try:
     import numpy as np
     import matplotlib
-    matplotlib.use('Agg') # Fundamental para que no choque en servidores
+    matplotlib.use('Agg') 
     import matplotlib.pyplot as plt
     from fpdf import FPDF
 except ImportError:
@@ -27,21 +35,15 @@ def main(page: ft.Page):
 
     # ⚠️ 1. REEMPLAZA CON TU ENLACE DE RENDER (EL DEL MOTOR, SIN / AL FINAL)
     URL_SERVIDOR = "https://motor-led-mexico.onrender.com" 
-    
-    # ⚠️ 2. REEMPLAZA CON EL NOMBRE EXACTO DE TU ARCHIVO JSON DE GOOGLE
     ARCHIVO_CREDENCIALES_GOOGLE = "credenciales.json" 
     
     ID_HOJA = "1B-q98Dl3TNxRX1yNXU9piCyTS4x2NvWDeY9EK3LvDzc"
     SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
 
     datos_pdf_global = {}
-    
-    # Creamos las carpetas necesarias
-    os.makedirs("uploads", exist_ok=True)
-    os.makedirs("assets", exist_ok=True)
 
     # ==========================================
-    # SISTEMA DE SEGURIDAD (LOGIN CON GOOGLE SHEETS)
+    # SISTEMA DE SEGURIDAD (LOGIN)
     # ==========================================
     def validar_en_google_sheets(usuario, password):
         try:
@@ -96,12 +98,7 @@ def main(page: ft.Page):
         content=ft.Column([
             ft.Icon(name="cloud_sync", size=80, color="orange"), 
             ft.Text("SISTEMA DE SEGURIDAD CLOUD", size=22, weight="bold", color="white"), 
-            ft.Container(height=10), 
-            in_usuario, 
-            in_password, 
-            prg_login, 
-            btn_login, 
-            txt_error_login
+            ft.Container(height=10), in_usuario, in_password, prg_login, btn_login, txt_error_login
         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
         alignment=ft.alignment.center, expand=True, margin=ft.margin.only(top=150)
     )
@@ -114,17 +111,15 @@ def main(page: ft.Page):
 
     def on_archivo_subido(e: ft.FilePickerUploadEvent):
         if e.progress < 1: return 
-        ruta_archivo = os.path.join("uploads", e.file_name)
+        ruta_archivo = os.path.join(CARPETA_UPLOADS, e.file_name)
         try:
             tipo_mime = 'application/pdf' if e.file_name.lower().endswith('.pdf') else 'image/jpeg'
             with open(ruta_archivo, 'rb') as f:
                 archivos_para_enviar = {'file': (e.file_name, f, tipo_mime)}
                 respuesta = requests.post(f"{URL_SERVIDOR}/api/ocr", files=archivos_para_enviar)
                 
-                try:
-                    datos = respuesta.json()
-                except Exception:
-                    datos = {"error": f"El servidor respondió con código {respuesta.status_code}. Revisa la URL_SERVIDOR."}
+                try: datos = respuesta.json()
+                except Exception: datos = {"error": f"El servidor respondió con código {respuesta.status_code}."}
 
             if datos.get("exito"):
                 txt_estado_ocr.value = "✅ ¡Recibo procesado con éxito!"; txt_estado_ocr.color = "green"
@@ -147,15 +142,11 @@ def main(page: ft.Page):
                 page.update(); calcular_propuesta()
             else: 
                 error_msg = datos.get('detail', datos.get('error', str(datos)))
-                txt_estado_ocr.value = f"❌ Error Real de la Nube: {error_msg}"
-                txt_estado_ocr.color = "red"
+                txt_estado_ocr.value = f"❌ Error Real de la Nube: {error_msg}"; txt_estado_ocr.color = "red"
         except Exception as ex: 
-            txt_estado_ocr.value = f"❌ Error de conexión al motor: {ex}"
-            txt_estado_ocr.color = "red"
+            txt_estado_ocr.value = f"❌ Error de conexión al motor: {ex}"; txt_estado_ocr.color = "red"
         finally: 
-            prg_ocr.visible = False
-            btn_ocr.disabled = False
-            page.update()
+            prg_ocr.visible = False; btn_ocr.disabled = False; page.update()
 
     def procesar_archivo_seleccionado(e: ft.FilePickerResultEvent):
         if getattr(e, "files", None) is None or not e.files: return
@@ -213,7 +204,11 @@ def main(page: ft.Page):
         elif t == "PDBT": columna_costos.controls.extend(campos_costos["PDBT"]); switch_mensual.value = False
         elif t == "GDMTO": columna_costos.controls.extend(campos_costos["GDMTO"]); switch_mensual.value = True
         elif t == "GDMTH": columna_costos.controls.extend(campos_costos["GDMTH"]); switch_mensual.value = True
-        columna_costos.controls.append(campos_costos["SUB"]); alternar_periodos(); btn_pdf.visible = False; page.update()
+        columna_costos.controls.append(campos_costos["SUB"]); alternar_periodos()
+        
+        # Ocultamos botones al cambiar tarifa
+        btn_pdf.visible = False; btn_abrir_pdf.visible = False
+        page.update()
 
     def btn_t(txt): return ft.ElevatedButton(txt, on_click=lambda _: actualizar_interfaz(txt), bgcolor="#2874A6", color="white")
     grid_tarifas = ft.Column([ft.Row([btn_t("01"), btn_t("1A"), btn_t("1B"), btn_t("1C"), btn_t("1D")], scroll="auto"), ft.Row([btn_t("1E"), btn_t("1F"), btn_t("DAC"), btn_t("PDBT"), btn_t("GDMTO"), btn_t("GDMTH")], scroll="auto")])
@@ -224,7 +219,8 @@ def main(page: ft.Page):
         except: return 0.0
 
     def calcular_propuesta(e=None):
-        res_final.content.value = "Calculando inteligencia financiera..."; btn_pdf.visible = False; page.update()
+        res_final.content.value = "Calculando inteligencia financiera..."
+        btn_pdf.visible = False; btn_abrir_pdf.visible = False; page.update()
         try:
             consumos_visibles = [x for x in entradas_historial if x.visible]
             consumos = [num_seguro(x.value) for x in consumos_visibles if num_seguro(x.value) > 0]
@@ -288,15 +284,17 @@ def main(page: ft.Page):
     # CREADOR PROFESIONAL DE PDF
     # ==========================================
     def generar_y_compartir_pdf(e):
+        btn_pdf.disabled = True
+        res_final.content.value = "⏳ Construyendo documento..."; page.update()
+        
         try: 
             import matplotlib.pyplot as plt
             import numpy as np
             from fpdf import FPDF
         except ImportError: 
             res_final.content.value = "⚠️ Instala librerías: pip install fpdf matplotlib numpy"
-            res_final.bgcolor = "#7B241C"; page.update(); return
+            res_final.bgcolor = "#7B241C"; btn_pdf.disabled = False; page.update(); return
             
-        res_final.content.value = "⏳ Construyendo documento y empaquetando datos..."; page.update()
         try:
             consumos = datos_pdf_global.get('c_list', [])
             gen_kwh = datos_pdf_global.get('gen_kwh', 0)
@@ -316,7 +314,7 @@ def main(page: ft.Page):
             ax.set_title('Historial de Energía (kWh)', fontsize=12, fontweight='bold')
             ax.set_xticks(x); ax.set_xticklabels(etiquetas)
             ax.legend(); fig.tight_layout()
-            ruta_g1 = os.path.join("uploads", "g1.png"); fig.savefig(ruta_g1); plt.close(fig)
+            ruta_g1 = os.path.join(CARPETA_UPLOADS, "g1.png"); fig.savefig(ruta_g1); plt.close(fig)
 
             # Gráfica 2
             fig, ax = plt.subplots(figsize=(7, 3.5))
@@ -326,7 +324,7 @@ def main(page: ft.Page):
             ax.set_title('Historial Económico ($)', fontsize=12, fontweight='bold')
             ax.set_xticks(x); ax.set_xticklabels(etiquetas)
             ax.legend(); fig.tight_layout()
-            ruta_g2 = os.path.join("uploads", "g2.png"); fig.savefig(ruta_g2); plt.close(fig)
+            ruta_g2 = os.path.join(CARPETA_UPLOADS, "g2.png"); fig.savefig(ruta_g2); plt.close(fig)
 
             # --- CONSTRUCCIÓN DEL PDF ---
             pdf = FPDF()
@@ -368,8 +366,7 @@ def main(page: ft.Page):
             anchos = [18, 25, 25, 22, 30, 30, 30]
             cabeceras = ["Periodo", "Consumo", "Gen. Solar", "Balance", "Pago Actual", "Ahorro", "Nuevo Pago"]
             
-            for i in range(7): 
-                pdf.cell(anchos[i], 7, cabeceras[i], border=1, align="C", fill=True)
+            for i in range(7): pdf.cell(anchos[i], 7, cabeceras[i], border=1, align="C", fill=True)
             pdf.ln()
 
             pdf.set_font("Arial", '', 9)
@@ -409,43 +406,43 @@ def main(page: ft.Page):
             pdf.image(ruta_g2, x=25, y=None, w=160)
 
             # ==========================================
-            # LA BALA DE PLATA: DESCARGA DIRECTA (SIN RUTAS NI SERVIDORES)
+            # EL BOTÓN DIRECTO NATIVO (Adiós al bloqueador de ventanas)
             # ==========================================
             timestamp = int(datetime.now().timestamp())
             nombre_archivo = f"Propuesta_LED_MEXICO_{timestamp}.pdf"
-            ruta_pdf = os.path.join("uploads", nombre_archivo)
+            ruta_pdf = os.path.join(CARPETA_UPLOADS, nombre_archivo)
             
-            # 1. Guardamos el PDF físicamente
+            # Guardamos el archivo físicamente en la carpeta
             pdf.output(ruta_pdf)
             
-            # 2. Leemos el archivo y lo convertimos a datos matemáticos (Base64)
-            with open(ruta_pdf, "rb") as f:
-                pdf_base64 = base64.b64encode(f.read()).decode('utf-8')
+            # Ocultamos el botón de generar, y mostramos el botón directo de descarga
+            btn_pdf.visible = False
             
-            # 3. Inyectamos los datos directamente en el navegador del usuario
-            # Esto forzará la descarga/visualización ignorando por completo la nube de Render
-            page.launch_url(f"data:application/pdf;base64,{pdf_base64}")
+            # Este botón actúa como un enlace normal de internet, por lo que el celular NO lo bloquea
+            btn_abrir_pdf.url = f"/upload/{nombre_archivo}"
+            btn_abrir_pdf.visible = True
             
-            res_final.content.value = "✅ ¡PDF Profesional Descargado!"
+            res_final.content.value = "✅ ¡PDF Generado! Haz clic en el botón verde de abajo para abrirlo."
             res_final.bgcolor = "#145A32"
         except Exception as ex: 
             res_final.content.value = f"⚠️ Error PDF: {ex}"
             res_final.bgcolor = "#7B241C"
+        
+        btn_pdf.disabled = False
         page.update()
 
+    # Los dos botones (El de proceso y el de descarga nativa)
     btn_calcular = ft.ElevatedButton("CALCULAR SISTEMA", on_click=calcular_propuesta, width=350, height=60, bgcolor="orange", color="white")
-    btn_pdf = ft.ElevatedButton("📄 EXPORTAR PDF CON GRÁFICAS", bgcolor="#C0392B", color="white", width=350, height=50, visible=False, on_click=generar_y_compartir_pdf)
+    btn_pdf = ft.ElevatedButton("📄 GENERAR PDF CON GRÁFICAS", bgcolor="#34495E", color="white", width=350, height=50, visible=False, on_click=generar_y_compartir_pdf)
+    btn_abrir_pdf = ft.ElevatedButton("✅ ABRIR / DESCARGAR PDF", bgcolor="#2ECC71", color="white", width=350, height=60, visible=False)
 
     pantalla_principal = ft.Column([
         ft.Text("LED MÉXICO - Dashboard Financiero + OCR", size=26, weight="bold", color="orange"),
         contenedor_ocr, 
         ft.Text("1. Seleccionar Tarifa CFE Manualmente (Opcional)", weight="bold"),
-        grid_tarifas, 
-        ft.Row([ft.Text("Tarifa Activa:"), tarifa_activa]), 
-        ft.Divider(),
-        ft.Row([in_potencia, switch_mensual]), 
-        fila_tablas, 
-        ft.Column([btn_calcular, btn_pdf], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
+        grid_tarifas, ft.Row([ft.Text("Tarifa Activa:"), tarifa_activa]), ft.Divider(),
+        ft.Row([in_potencia, switch_mensual]), fila_tablas, 
+        ft.Column([btn_calcular, btn_pdf, btn_abrir_pdf], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
         res_final
     ], visible=False)
 
@@ -455,5 +452,5 @@ def main(page: ft.Page):
 os.environ["FLET_SECRET_KEY"] = "LED_MEXICO_SEGURIDAD_123"
 puerto = int(os.environ.get("PORT", 8080))
 
-# Ejecución final
-ft.app(target=main, view=ft.AppView.WEB_BROWSER, upload_dir="uploads", assets_dir="assets", host="0.0.0.0", port=puerto)
+# Ahora usamos la ruta absoluta para que Flet no se pierda nunca
+ft.app(target=main, view=ft.AppView.WEB_BROWSER, upload_dir=CARPETA_UPLOADS, assets_dir=CARPETA_ASSETS, host="0.0.0.0", port=puerto)
